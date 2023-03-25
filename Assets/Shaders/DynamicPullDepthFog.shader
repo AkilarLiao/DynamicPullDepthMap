@@ -38,7 +38,6 @@
             {
                 float4 positionCS : SV_POSITION;
                 float3 worldPosition : TEXCOORD0;
-                float4 screenPosition : TEXCOORD1;
             };
             
             CBUFFER_START(UnityPerMaterial)
@@ -52,9 +51,9 @@
             half _DepthVisibility;
             CBUFFER_END
 
-            half ProcessDepthRatio(float2 screenUV, float waterSurfaceHeight)
+            half ProcessDepthRatio(float2 positionCS2, float waterSurfaceHeight)
             {   
-                float3 groundPosition = GetDepthToWorldPosition(screenUV);
+                float3 groundPosition = ComputeWorldSpacePositionFromDepth(positionCS2);
                 float sourceHeight = min(groundPosition.y, waterSurfaceHeight);
                 float depthRatio = saturate((waterSurfaceHeight - groundPosition.y) / _FogDepth);
                 depthRatio = 1.0 - pow(1.0 - depthRatio, _FogDepthPow);
@@ -66,20 +65,17 @@
                 VertexOutput output;
                 output.worldPosition = TransformObjectToWorld(input.positionOS.xyz);
                 output.positionCS = TransformWorldToHClip(output.worldPosition);
-                output.screenPosition = ComputeScreenPos(output.positionCS);
                 return output;
             }
 
             half4 FragmentProgram(VertexOutput input) : SV_Target
             {
-                real2 screenUV = input.screenPosition.xy / input.screenPosition.w;
                 float origionHeight = input.worldPosition.y;                
                 float3 worldPosition = input.worldPosition;
                 float2 offestPosition = worldPosition.xz * _PerlinWorldScale + _Time.y * _PerlinNoiseSpeed;
-                worldPosition.y += snoise(offestPosition) * _PerlinRnageRatio - _FogPlaneOffestHeight;
-                float depthRatio = ProcessDepthRatio(screenUV, worldPosition.y);
+                worldPosition.y += snoise(offestPosition) * _PerlinRnageRatio - _FogPlaneOffestHeight;                
+                float depthRatio = ProcessDepthRatio(input.positionCS.xy, worldPosition.y);
                 half3 resultColor = _FogColor;
-
                 return lerp(half4(_FogColor, depthRatio),
                     half4(depthRatio, 0.0, 0.0, 1.0), _DepthVisibility);
             }
